@@ -1,7 +1,24 @@
+// project Type
+enum ProjectStatus {Active, Finished}
+
+
+class Project {
+
+  constructor(
+    public id:  string, 
+    public title: string, 
+    public description: string, 
+    public people: number, 
+    public status:  ProjectStatus
+    ) {}
+}
+
+type Listener = (items: Project[]) => void;
+
 // project Sate management 
 class ProjectState {
-  private listeners: any[] = [];
-  private projects: any[] = [];
+  private listeners: Listener[] = [];
+  private projects: Project[] = [];
   private static instance: ProjectState;
 
   private constructor() {
@@ -15,16 +32,17 @@ class ProjectState {
     this.instance = new ProjectState();
     return this.instance;
   }
-  addlistner(listenerFn: Function) {
+  addlistner(listenerFn: Listener) {
     this.listeners.push(listenerFn);
   }
   addproject(title: string, description: string, numOfpeople: number) {
-    const newproject = {
-      id: Math.random().toString(),
-      title: title,
-      description: description,
-      people: numOfpeople
-    };
+    const newproject =  new Project(
+      Math.random().toString(), 
+      title, 
+      description, 
+      numOfpeople, 
+      ProjectStatus.Active
+      );
     this.projects.push(newproject);
     for (const listenerFn of this.listeners) {
       listenerFn(this.projects.slice());
@@ -81,23 +99,56 @@ function autobind(
   };
   return adjDescriptor; 
 }
+// component Base Class
+class Component<T extends HTMLElement, U extends HTMLElement> {
+  templateElement: HTMLTemplateElement;
+  hostElement: T;
+  element: U;
+
+  constructor(
+    templateId: string, 
+    HostElementId: string, 
+    insertAtStart: boolean,
+    newElementId?: string
+    ) 
+    {
+      this.templateElement = document.getElementById(templateId)! as HTMLTemplateElement;
+      this.hostElement = document.getElementById(HostElementId)! as T;
+      const importedNode = document.importNode(this.templateElement.content, true);
+      this.element = importedNode.firstElementChild as U;
+      if (newElementId) {
+        this.element.id = newElementId;
+      }
+      this.attach(insertAtStart);
+    }
+      private attach(insertAtBeginning: boolean) {
+          this.hostElement.insertAdjacentElement(
+            insertAtBeginning ? 'afterbegin' : 'beforeend',
+            this.element 
+          )
+      } 
+}
+
 //projectList Class
 class ProjectList {
   templateElement: HTMLTemplateElement;
   hostElement: HTMLDivElement;
   element: HTMLElement;
-  assignedProject: any[];
+  assignedProject: Project[];
 
   constructor(private type:  'active'| 'finished') {
-    this.templateElement = document.getElementById('project-list')! as HTMLTemplateElement;
-    this.hostElement = document.getElementById('app')! as HTMLDivElement;
+
     this.assignedProject = [];
 
-    const importedNode = document.importNode(this.templateElement.content, true);
-    this.element = importedNode.firstElementChild as HTMLElement;
-    this.element.id = `${this.type}-projects`;
-    projectState.addlistner((projects: any[]) => {
-      this.assignedProject = projects;
+
+    projectState.addlistner((projects: Project[]) => {
+      const relevantprojects = projects.filter(prj => {
+        if( this.type === 'active' ) {
+          return prj.status === ProjectStatus.Active;
+        }
+          return prj.status === ProjectStatus.Finished;
+      } );
+      this.assignedProject = relevantprojects;
       this.renderprojects();
     });
     
@@ -107,6 +158,7 @@ class ProjectList {
   }
   private renderprojects() {
     const listEl = document.getElementById(`${this.type}-projects-list`)! as HTMLUListElement;
+    listEl.innerHTML = '';
     for (const prjItem of this.assignedProject){
       const listItem = document.createElement('li');
       listItem.textContent = prjItem.title;
@@ -119,9 +171,7 @@ class ProjectList {
     this.element.querySelector('h2')!.textContent = this.type.toUpperCase() + ' PROJECTS';
   }
   
-  private attach() {
-    this.hostElement.insertAdjacentElement('beforeend', this.element )
-  }
+  
 }
 
 
